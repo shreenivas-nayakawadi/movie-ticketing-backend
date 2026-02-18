@@ -1,11 +1,7 @@
-import { Pool } from 'pg';
-import { env } from '../config/env';
+﻿import { prisma } from './prisma';
 
-export const pgPool = new Pool({
-  connectionString: env.DATABASE_URL,
-  max: 10,
-});
+export { prisma };
 
 export async function checkPostgresConnection(): Promise<void> {
-  await pgPool.query('SELECT 1');
+  await prisma.$queryRaw`SELECT 1`;
 }

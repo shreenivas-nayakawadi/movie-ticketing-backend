@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShowStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum ShowSeatStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+  BLOCKED
+}
+
+enum HoldStatus {
+  ACTIVE
+  EXPIRED
+  CONVERTED
+  CANCELLED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum ConcessionOrderStatus {
+  PENDING
+  PREPARING
+  READY
+  PICKED_UP
+  CANCELLED
+}
+
+enum LoyaltyTxnType {
+  EARN
+  REDEEM
+  ADJUST
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model Auditorium {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  rows      Int
+  cols      Int
+  seats     Seat[]
+  shows     Show[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Seat {
+  id           String     @id @default(cuid())
+  auditoriumId String
+  rowLabel     String
+  seatNumber   Int
+  auditorium   Auditorium @relation(fields: [auditoriumId], references: [id], onDelete: Cascade)
+  showSeats    ShowSeat[]
+  createdAt    DateTime   @default(now())
+
+  @@unique([auditoriumId, rowLabel, seatNumber])
+  @@index([auditoriumId, rowLabel])
+}
+
+model Show {
+  id               String      @id @default(cuid())
+  movieTitle       String
+  startsAt         DateTime
+  intervalAt       DateTime
+  auditoriumId     String
+  status           ShowStatus  @default(SCHEDULED)
+  auditorium       Auditorium  @relation(fields: [auditoriumId], references: [id], onDelete: Restrict)
+  showSeats        ShowSeat[]
+  holds            Hold[]
+  bookings         Booking[]
+  cancellationJobs RefundJob[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([startsAt])
+  @@index([status])
+  @@index([auditoriumId, startsAt])
+}
+
+model ShowSeat {
+  id           String         @id @default(cuid())
+  showId       String
+  seatId       String
+  status       ShowSeatStatus @default(AVAILABLE)
+  price        Decimal        @db.Decimal(10, 2)
+  show         Show           @relation(fields: [showId], references: [id], onDelete: Cascade)
+  seat         Seat           @relation(fields: [seatId], references: [id], onDelete: Restrict)
+  holdSeats    HoldSeat[]
+  bookingSeats BookingSeat[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([showId, seatId])
+  @@index([showId, status])
+}
+
+model Hold {
+  id            String     @id @default(cuid())
+  showId        String
+  customerEmail String
+  status        HoldStatus @default(ACTIVE)
+  expiresAt     DateTime
+  show          Show       @relation(fields: [showId], references: [id], onDelete: Cascade)
+  holdSeats     HoldSeat[]
+  booking       Booking?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([showId, status, expiresAt])
+  @@index([customerEmail])
+}
+
+model HoldSeat {
+  id         String   @id @default(cuid())
+  holdId     String
+  showSeatId String
+  hold       Hold     @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  showSeat   ShowSeat @relation(fields: [showSeatId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+
+  @@unique([holdId, showSeatId])
+  @@unique([showSeatId])
+}
+
+model Booking {
+  id                  String           @id @default(cuid())
+  showId              String
+  holdId              String?          @unique
+  customerEmail       String
+  customerPhone       String?
+  status              BookingStatus    @default(CONFIRMED)
+  subtotal            Decimal          @db.Decimal(10, 2)
+  discount            Decimal          @default(0) @db.Decimal(10, 2)
+  total               Decimal          @db.Decimal(10, 2)
+  loyaltyPointsEarned Int              @default(0)
+  show                Show             @relation(fields: [showId], references: [id], onDelete: Restrict)
+  hold                Hold?            @relation(fields: [holdId], references: [id], onDelete: SetNull)
+  bookingSeats        BookingSeat[]
+  payment             Payment?
+  concessionOrder     ConcessionOrder?
+  loyaltyEntries      LoyaltyLedger[]
+  notifications       Notification[]
+  refunds             RefundJob[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([showId, status])
+  @@index([customerEmail])
+}
+
+model BookingSeat {
+  id         String   @id @default(cuid())
+  bookingId  String
+  showSeatId String
+  price      Decimal  @db.Decimal(10, 2)
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  showSeat   ShowSeat @relation(fields: [showSeatId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+
+  @@unique([bookingId, showSeatId])
+  @@unique([showSeatId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  provider          String
+  providerReference String        @unique
+  status            PaymentStatus @default(PENDING)
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("USD")
+  capturedAt        DateTime?
+  metadata          Json?
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model ConcessionOrder {
+  id              String                @id @default(cuid())
+  bookingId       String                @unique
+  status          ConcessionOrderStatus @default(PENDING)
+  scheduledPrepAt DateTime?
+  totalAmount     Decimal               @db.Decimal(10, 2)
+  booking         Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  items           ConcessionItem[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model ConcessionItem {
+  id                String          @id @default(cuid())
+  concessionOrderId String
+  sku               String
+  name              String
+  quantity          Int
+  unitPrice         Decimal         @db.Decimal(10, 2)
+  discountPercent   Decimal         @default(0) @db.Decimal(5, 2)
+  concessionOrder   ConcessionOrder @relation(fields: [concessionOrderId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+
+  @@index([concessionOrderId])
+}
+
+model ComboRule {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  description     String
+  minTickets      Int
+  targetSku       String
+  discountPercent Decimal  @db.Decimal(5, 2)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model LoyaltyLedger {
+  id            String         @id @default(cuid())
+  bookingId     String?
+  customerEmail String
+  points        Int
+  type          LoyaltyTxnType
+  reason        String
+  booking       Booking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+
+  @@index([customerEmail, createdAt])
+  @@index([bookingId])
+}
+
+model Notification {
+  id         String              @id @default(cuid())
+  bookingId  String?
+  channel    NotificationChannel
+  template   String
+  recipient  String
+  status     NotificationStatus  @default(PENDING)
+  externalId String?
+  payload    Json?
+  booking    Booking?            @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  createdAt  DateTime            @default(now())
+  sentAt     DateTime?
+
+  @@index([bookingId])
+  @@index([channel, status])
+}
+
+model RefundJob {
+  id                String       @id @default(cuid())
+  showId            String
+  bookingId         String
+  status            RefundStatus @default(PENDING)
+  amount            Decimal      @db.Decimal(10, 2)
+  providerReference String?
+  lastError         String?
+  show              Show         @relation(fields: [showId], references: [id], onDelete: Cascade)
+  booking           Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  processedAt       DateTime?
+
+  @@unique([showId, bookingId])
+  @@index([status])
+}
