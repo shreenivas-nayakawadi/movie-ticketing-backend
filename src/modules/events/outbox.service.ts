@@ -34,15 +34,17 @@ export async function createBookingOutboxEvents(
   });
 
   if (input.hasConcessions && input.showIntervalAt) {
+    const prepAt = getKitchenPrepTime(input.showIntervalAt);
     await client.notification.create({
       data: {
         bookingId: input.bookingId,
         channel: 'SMS',
         template: 'KITCHEN_PREP_TRIGGER',
         recipient: 'KITCHEN_QUEUE',
+        nextAttemptAt: prepAt,
         payload: {
           bookingId: input.bookingId,
-          prepAt: getKitchenPrepTime(input.showIntervalAt).toISOString(),
+          prepAt: prepAt.toISOString(),
         },
       },
     });

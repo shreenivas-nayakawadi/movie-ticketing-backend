@@ -18,7 +18,10 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "worker:outbox": "tsx src/workers/outbox.entry.ts",
+    "worker:refund": "tsx src/workers/refund.entry.ts",
+    "worker:temporal": "tsx src/temporal/worker.ts"
   },
   "keywords": [],
   "author": "",

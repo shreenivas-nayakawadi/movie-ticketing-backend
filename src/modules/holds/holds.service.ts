@@ -3,7 +3,6 @@ import { env } from '../../config/env';
 import { HttpError } from '../../lib/http-error';
 import { prisma } from '../../lib/prisma';
 import { checkRedisConnection, redisClient } from '../../lib/redis';
-import { hasSingleSeatGapInRow } from './seat-gap.rule';
 
 type CreateHoldInput = {
   showId: string;
@@ -145,33 +144,35 @@ function mapHold(hold: HoldWithSeats) {
   };
 }
 
-// Validate selection against the "single-seat-gap" business rule row by row.
-function validateSingleSeatGap(
-  allShowSeats: Array<{
-    id: string;
-    status: string;
+// Validate selected seats are continuous (serial) within each row.
+function validateSerialSeatSelection(
+  selectedShowSeats: Array<{
     seat: { rowLabel: string; seatNumber: number };
   }>,
-  selectedShowSeatIds: Set<string>,
 ): void {
-  const rows = new Map<string, Array<{ seatNumber: number; blocked: boolean }>>();
+  const rowSeatNumbers = new Map<string, number[]>();
 
-  for (const showSeat of allShowSeats) {
-    const blocked =
-      showSeat.status !== SHOW_SEAT_STATUS_AVAILABLE || selectedShowSeatIds.has(showSeat.id);
-
-    const row = rows.get(showSeat.seat.rowLabel) ?? [];
-    row.push({ seatNumber: showSeat.seat.seatNumber, blocked });
-    rows.set(showSeat.seat.rowLabel, row);
+  for (const showSeat of selectedShowSeats) {
+    const rowLabel = showSeat.seat.rowLabel;
+    const row = rowSeatNumbers.get(rowLabel) ?? [];
+    row.push(showSeat.seat.seatNumber);
+    rowSeatNumbers.set(rowLabel, row);
   }
 
-  for (const [rowLabel, rowSeats] of rows.entries()) {
-    if (hasSingleSeatGapInRow(rowSeats)) {
-      throw new HttpError(
-        422,
-        `Selection violates single-seat-gap rule in row ${rowLabel}`,
-        'SINGLE_SEAT_GAP',
-      );
+  for (const [rowLabel, seatNumbers] of rowSeatNumbers.entries()) {
+    if (seatNumbers.length <= 1) {
+      continue;
+    }
+
+    const sorted = [...seatNumbers].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i += 1) {
+      if (sorted[i] - sorted[i - 1] !== 1) {
+        throw new HttpError(
+          422,
+          `Selected seats must be continuous in row ${rowLabel}`,
+          'SINGLE_SEAT_GAP',
+        );
+      }
     }
   }
 }
@@ -227,14 +228,7 @@ export async function createHold(input: CreateHoldInput) {
     );
   }
 
-  const allShowSeats = await prisma.showSeat.findMany({
-    where: { showId: input.showId },
-    include: {
-      seat: true,
-    },
-  });
-
-  validateSingleSeatGap(allShowSeats, new Set(showSeatIds));
+  validateSerialSeatSelection(requestedShowSeats);
 
   const holdId = randomUUID();
   const expiresAt = new Date(Date.now() + env.HOLD_TTL_SECONDS * 1000);

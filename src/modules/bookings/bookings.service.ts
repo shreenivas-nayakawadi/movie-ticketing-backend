@@ -10,6 +10,7 @@ import {
   ConcessionRequest,
   PricingComboRule,
 } from '../pricing/pricing.service';
+import { scheduleKitchenPrepWorkflow } from '../../temporal/kitchen.scheduler';
 
 const HOLD_STATUS_ACTIVE = 'ACTIVE';
 const HOLD_STATUS_CONVERTED = 'CONVERTED';
@@ -480,6 +481,17 @@ export async function checkoutBooking(input: CheckoutInput) {
   const createdBooking = await findBookingById(bookingId);
   if (!createdBooking) {
     throw new HttpError(500, 'Failed to load booking after checkout', 'BOOKING_READ_FAILED');
+  }
+
+  if (createdBooking.concessionOrder?.scheduledPrepAt) {
+    try {
+      await scheduleKitchenPrepWorkflow({
+        bookingId: createdBooking.id,
+        prepAtIso: createdBooking.concessionOrder.scheduledPrepAt.toISOString(),
+      });
+    } catch (error) {
+      console.error('[booking] failed to schedule kitchen prep workflow', error);
+    }
   }
 
   return {

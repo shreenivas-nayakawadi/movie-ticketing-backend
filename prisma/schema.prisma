@@ -275,7 +275,11 @@ model Notification {
   template   String
   recipient  String
   status     NotificationStatus  @default(PENDING)
+  attempts   Int                 @default(0)
+  maxAttempts Int                @default(5)
+  nextAttemptAt DateTime?
   externalId String?
+  lastError  String?
   payload    Json?
   booking    Booking?            @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   createdAt  DateTime            @default(now())
@@ -283,6 +287,7 @@ model Notification {
 
   @@index([bookingId])
   @@index([channel, status])
+  @@index([status, nextAttemptAt, createdAt])
 }
 
 model RefundJob {
@@ -290,6 +295,9 @@ model RefundJob {
   showId            String
   bookingId         String
   status            RefundStatus @default(PENDING)
+  attempts          Int          @default(0)
+  maxAttempts       Int          @default(5)
+  nextAttemptAt     DateTime?
   amount            Decimal      @db.Decimal(10, 2)
   providerReference String?
   lastError         String?
@@ -301,4 +309,5 @@ model RefundJob {
 
   @@unique([showId, bookingId])
   @@index([status])
+  @@index([status, nextAttemptAt, createdAt])
 }

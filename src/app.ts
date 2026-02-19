@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import adminShowsRouter from './modules/admin/shows/admin-shows.route';
 import bookingsRouter from './modules/bookings/bookings.route';
 import customersRouter from './modules/customers/customers.route';
 import holdsRouter from './modules/holds/holds.route';
@@ -21,6 +22,7 @@ app.use('/api', showsRouter);
 app.use('/api', holdsRouter);
 app.use('/api', bookingsRouter);
 app.use('/api', customersRouter);
+app.use('/api', adminShowsRouter);
 
 // Fallback handlers for unknown routes and centralized errors.
 app.use(notFoundHandler);
