@@ -159,7 +159,7 @@ model HoldSeat {
   createdAt  DateTime @default(now())
 
   @@unique([holdId, showSeatId])
-  @@unique([showSeatId])
+  @@index([showSeatId])
 }
 
 model Booking {

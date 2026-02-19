@@ -5,6 +5,7 @@ import { checkTemporalConnection } from '../lib/temporal';
 
 const healthRouter = Router();
 
+// Fast liveness endpoint to confirm API process is running.
 healthRouter.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'ok',
@@ -14,6 +15,7 @@ healthRouter.get('/health', (_req, res) => {
   });
 });
 
+// Readiness endpoint that verifies all required infra dependencies.
 healthRouter.get('/ready', async (_req, res, next) => {
   try {
     await Promise.all([

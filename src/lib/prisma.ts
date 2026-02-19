@@ -14,6 +14,7 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
+// Lightweight query to confirm Prisma can reach Postgres.
 export async function checkPrismaConnection(): Promise<void> {
   await prisma.$queryRaw`SELECT 1`;
 }

@@ -10,6 +10,8 @@ const envSchema = z.object({
   REDIS_URL: z.string().url(),
   TEMPORAL_ADDRESS: z.string().min(1),
   TEMPORAL_NAMESPACE: z.string().default('default'),
+  HOLD_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  HOLD_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
 });
 
 export const env = envSchema.parse(process.env);
