@@ -12,6 +12,8 @@ const envSchema = z.object({
   TEMPORAL_NAMESPACE: z.string().default('default'),
   HOLD_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   HOLD_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
+  LOYALTY_POINT_VALUE_CENTS: z.coerce.number().int().positive().default(100),
+  LOYALTY_EARN_PER_CURRENCY_UNIT: z.coerce.number().int().positive().default(10),
 });
 
 export const env = envSchema.parse(process.env);

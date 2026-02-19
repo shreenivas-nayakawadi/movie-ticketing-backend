@@ -309,9 +309,9 @@ export async function cancelHold(holdId: string) {
     (holdSeat: HoldSeatWithRelations) => holdSeat.showSeatId,
   );
 
-  if (hold.status === HOLD_STATUS_ACTIVE) {
-    await prisma.$transaction(async (tx: TxClient) => {
-      const markCancelled = await tx.hold.updateMany({
+  await prisma.$transaction(async (tx: TxClient) => {
+    if (hold.status === HOLD_STATUS_ACTIVE) {
+      await tx.hold.updateMany({
         where: {
           id: holdId,
           status: HOLD_STATUS_ACTIVE,
@@ -320,26 +320,23 @@ export async function cancelHold(holdId: string) {
           status: HOLD_STATUS_CANCELLED,
         },
       });
+    }
 
-      if (markCancelled.count === 0) {
-        return;
-      }
+    // Always try to free any held seats for this hold as an idempotent healing step.
+    if (showSeatIds.length > 0) {
+      await tx.showSeat.updateMany({
+        where: {
+          id: { in: showSeatIds },
+          status: SHOW_SEAT_STATUS_HELD,
+        },
+        data: {
+          status: SHOW_SEAT_STATUS_AVAILABLE,
+        },
+      });
+    }
+  });
 
-      if (showSeatIds.length > 0) {
-        await tx.showSeat.updateMany({
-          where: {
-            id: { in: showSeatIds },
-            status: SHOW_SEAT_STATUS_HELD,
-          },
-          data: {
-            status: SHOW_SEAT_STATUS_AVAILABLE,
-          },
-        });
-      }
-    });
-
-    await releaseSeatLocks(hold.showId, showSeatIds, hold.id);
-  }
+  await releaseSeatLocks(hold.showId, showSeatIds, hold.id);
 
   const refreshedHold = await findHoldWithSeats(holdId);
 

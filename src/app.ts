@@ -2,6 +2,8 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import bookingsRouter from './modules/bookings/bookings.route';
+import customersRouter from './modules/customers/customers.route';
 import holdsRouter from './modules/holds/holds.route';
 import showsRouter from './modules/shows/shows.route';
 import healthRouter from './routes/health.route';
@@ -17,6 +19,8 @@ app.use(express.json());
 app.use('/api', healthRouter);
 app.use('/api', showsRouter);
 app.use('/api', holdsRouter);
+app.use('/api', bookingsRouter);
+app.use('/api', customersRouter);
 
 // Fallback handlers for unknown routes and centralized errors.
 app.use(notFoundHandler);
